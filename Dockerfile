@@ -10,10 +10,13 @@ RUN (groupmod -g 1000 www-data)
 #RUN (find / -uid 1000 -exec chown -h 5000 '{}' \+)
 
 # persistent / runtime deps
-RUN apt-get update && apt-get install -y ca-certificates curl librecode0 libsqlite3-0 libxml2 --no-install-recommends && rm -r /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates curl librecode0 libsqlite3-0 libpng12-dev libxml2 zip unzip libjpeg-dev autoconf file g++ gcc libc-dev make pkg-config re2c wget nano --no-install-recommends && rm -r /var/lib/apt/lists/*
 
-# phpize deps
-RUN apt-get update && apt-get install -y autoconf file g++ gcc libc-dev make pkg-config re2c --no-install-recommends && rm -r /var/lib/apt/lists/*
+RUN echo "deb http://nginx.org/packages/ubuntu/ trusty nginx " > /etc/apt/sources.list.d/nginx.list
+RUN echo "deb-src http://nginx.org/packages/ubuntu/ trusty nginx" >> /etc/apt/sources.list.d/nginx.list
+
+RUN wget http://nginx.org/keys/nginx_signing.key
+RUN apt-key add nginx_signing.key
 
 #nginx
 RUN apt-get update && \
@@ -27,7 +30,6 @@ RUN apt-get update && \
     apt-get install -y --force-yes \
     nginx \
     && rm -r /var/lib/apt/lists/*
-
 RUN echo "daemon off;" >> /etc/nginx/nginx.conf
 
 ENV PHP_INI_DIR /usr/local/etc/php
@@ -80,6 +82,8 @@ RUN buildDeps=" \
 		--with-recode \
 		--with-zlib \
                 --enable-zip \
+		--with-gd \
+                --with-jpeg-dir=/usr/lib/x86_64-linux-gnu \
         --with-pdo-mysql \
         --enable-mbstring \
         --with-mcrypt \
@@ -139,13 +143,11 @@ RUN mkdir -p /var/www &&\
 
 RUN mkdir                       /etc/service/nginx
 RUN mkdir                       /etc/service/phpfpm
-ADD Dockerbuild/default         /etc/nginx/sites-available/default
+#ADD Dockerbuild/default         /etc/nginx/conf.d/default.conf
 ADD Dockerbuild/nginx.sh        /etc/service/nginx/run
 ADD Dockerbuild/phpfpm.sh       /etc/service/phpfpm/run
 ADD Dockerbuild/php.ini         /usr/local/etc/php/php.ini
 RUN chmod +x                    /etc/service/nginx/run
 RUN chmod +x                    /etc/service/phpfpm/run
-
-VOLUME ["/var/www"]
 
 CMD ["/sbin/my_init"]
