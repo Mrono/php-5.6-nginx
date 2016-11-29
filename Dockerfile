@@ -10,7 +10,34 @@ RUN (groupmod -g 1000 www-data)
 #RUN (find / -uid 1000 -exec chown -h 5000 '{}' \+)
 
 # persistent / runtime deps
-RUN apt-get update && apt-get install -y ca-certificates curl librecode0 libsqlite3-0 libpng12-dev libxml2 zip unzip libjpeg-dev autoconf file g++ gcc libc-dev make pkg-config re2c wget nano --no-install-recommends && rm -r /var/lib/apt/lists/*
+RUN apt-get update
+RUN apt-get install -y ca-certificates \
+	curl \
+        libcurl3 \
+	librecode0 \
+	libsqlite3-0 \
+	libpng12-dev \
+	libxml2 \
+	zip \
+	unzip \
+	libjpeg-dev \
+	autoconf \
+	file \
+	g++ \
+	gcc \
+	libc-dev \
+	make \
+	pkg-config \
+	re2c \
+	wget \
+	nano \
+	python-software-properties\
+	build-essential\
+	pkg-config \
+	libmcrypt-dev \ 
+        libxslt1.1 \
+	--no-install-recommends 
+#RUN apt-get install -y rsyslog syslog-ng
 
 RUN echo "deb http://nginx.org/packages/ubuntu/ trusty nginx " > /etc/apt/sources.list.d/nginx.list
 RUN echo "deb-src http://nginx.org/packages/ubuntu/ trusty nginx" >> /etc/apt/sources.list.d/nginx.list
@@ -19,19 +46,12 @@ RUN wget http://nginx.org/keys/nginx_signing.key
 RUN apt-key add nginx_signing.key
 
 #nginx
-RUN apt-get update && \
-    apt-get install -y --force-yes \
-    python-software-properties\
-    build-essential\
-    pkg-config \
-    libmcrypt-dev \
-    && rm -r /var/lib/apt/lists/*
-RUN apt-get update && \
-    apt-get install -y --force-yes \
-    nginx \
-    && rm -r /var/lib/apt/lists/*
-RUN echo "daemon off;" >> /etc/nginx/nginx.conf
+RUN apt-get update
+RUN apt-get install -y --force-yes nginx
+RUN rm -r /var/lib/apt/lists/*
 
+RUN echo "daemon off;" >> /etc/nginx/nginx.conf
+RUN echo "error_log /dev/stdout info;" >> /etc/nginx/nginx.conf
 ENV PHP_INI_DIR /usr/local/etc/php
 RUN mkdir -p $PHP_INI_DIR/conf.d
 
@@ -76,6 +96,7 @@ RUN buildDeps=" \
 		$PHP_EXTRA_CONFIGURE_ARGS \
 		--disable-cgi \
 		--enable-mysqlnd \
+		--with-mysqli \
 		--with-curl \
 		--with-openssl \
 		--with-readline \
@@ -83,6 +104,7 @@ RUN buildDeps=" \
 		--with-zlib \
                 --enable-zip \
 		--with-gd \
+		--enable-xdebug \
                 --with-jpeg-dir=/usr/lib/x86_64-linux-gnu \
         --with-pdo-mysql \
         --enable-mbstring \
@@ -136,6 +158,15 @@ RUN set -ex \
 	} | tee php-fpm.d/zz-docker.conf
 
 
+#Install xdebug
+RUN apt-get update
+RUN apt-get install -y git-core
+RUN git clone https://github.com/xdebug/xdebug.git /tmp/xdebug
+RUN cd /tmp/xdebug && phpize && ./configure --enable-xdebug && make
+RUN mkdir /usr/local/etc/php/modules
+RUN cp /tmp/xdebug/modules/xdebug.so /usr/local/etc/php/modules/xdebug.so
+RUN cd / && rm -rf /tmp/xdebug
+
 
 RUN mkdir -p /var/www &&\
     chown -R www-data:www-data /var/www &&\
@@ -143,11 +174,13 @@ RUN mkdir -p /var/www &&\
 
 RUN mkdir                       /etc/service/nginx
 RUN mkdir                       /etc/service/phpfpm
-#ADD Dockerbuild/default         /etc/nginx/conf.d/default.conf
+ADD Dockerbuild/default         /etc/nginx/conf.d/default.conf
 ADD Dockerbuild/nginx.sh        /etc/service/nginx/run
 ADD Dockerbuild/phpfpm.sh       /etc/service/phpfpm/run
+#ADD Dockerbuild/graylog.conf    /etc/rsyslog.d/graylog.conf
 ADD Dockerbuild/php.ini         /usr/local/etc/php/php.ini
 RUN chmod +x                    /etc/service/nginx/run
 RUN chmod +x                    /etc/service/phpfpm/run
 
+#CMD service rsyslog start && /sbin/my_init
 CMD ["/sbin/my_init"]
